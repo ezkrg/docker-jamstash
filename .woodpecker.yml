@@ -4,7 +4,7 @@ pipeline:
     privileged: true
     detach: true
     commands:
-      - dockerd --host=tcp://0.0.0.0:2375"
+      - dockerd --host=tcp://0.0.0.0:2375
 
   version:
     image: alpine:3.16
