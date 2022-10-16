@@ -1,0 +1,34 @@
+pipeline:
+  docker:
+    image: docker:dind
+    privileged: true
+    detach: true
+    commands:
+      - dockerd --host=tcp://0.0.0.0:2375"
+
+  version:
+    image: alpine:3.16
+    commands:
+      - apk add --update --no-cache curl git jq
+      - LATEST=$(curl -s https://api.github.com/repos/tsquillario/Jamstash/releases/latest | jq -r ".tag_name")
+      - if curl -sfL https://hub.docker.com/v2/repositories/ezkrg/jamstash/tags/$LATEST > /dev/null; then echo "tag $LATEST already exist"; exit 78; fi
+      - echo -n "$LATEST" > .tag
+      
+  build:
+    image: ezkrg/buildx:latest
+    environment:
+      - DOCKER_HOST=tcp://docker:2375
+    secrets:
+      - source: docker_user
+        target: user
+      - source: docker_pass
+        target: password
+    commands:
+      - while ! docker info; do sleep 1; done
+      - TAG=$(cat .tag)
+      - docker buildx create --use --name docker --node docker --platform linux/amd64 --driver docker-container $DOCKER_HOST
+      - echo $PASSWORD | docker login --username $USER --password-stdin
+      - docker buildx build --load --cache-from ezkrg/cache:jamstash --cache-to ezkrg/cache:jamstash -t ezkrg/jamstash:$TAG --build-arg VERSION=$TAG .
+      - docker push ezkrg/jamstash:$TAG
+      - docker tag ezkrg/jamstash:$TAG ezkrg/jamstash:latest
+      - docker push ezkrg/jamstash:latest
